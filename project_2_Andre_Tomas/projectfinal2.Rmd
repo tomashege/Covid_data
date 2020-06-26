@@ -1,0 +1,843 @@
+---
+title: "Project Code 2"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: scroll
+    source_code: embed
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(tidyverse)
+library(tidytext)
+library(lubridate)
+library(ggplot2)
+library(dplyr)
+library(beepr)
+library(tidyr)
+library(reshape2)
+library(wordcloud)
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load_gh("trinker/entity")
+library(entity)
+beep()
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### This is the combining of the various sources
+```{r echo=TRUE}
+# bt <- read_csv('/Users/tomashegewisch/data_block/scraped_websites/businesstech.csv')
+# citizen <- read_csv('/Users/tomashegewisch/data_block/scraped_websites/citizen_out.csv')
+# groundup <-read_csv('/Users/tomashegewisch/data_block/scraped_websites/groundup.csv')
+# mavric <- read_csv('/Users/tomashegewisch/data_block/scraped_websites/mavric.csv')
+# news24_ewn_enca_mybrod_mg <- read_csv('/Users/tomashegewisch/data_block/scraped_websites/news24_ewn_enca_mybrod_mg.csv')
+# sabc <- read_csv('/Users/tomashegewisch/data_block/scraped_websites/sabc_news_out.csv')
+# sowetan<- read_csv('/Users/tomashegewisch/data_block/scraped_websites/sowetan_out.csv')
+# thevox <-read_csv('/Users/tomashegewisch/data_block/scraped_websites/the_daily_out.csv')
+# 
+# combined <- bind_rows(bt, citizen, groundup, mavric, news24_ewn_enca_mybrod_mg, sabc, sowetan,thevox)
+# write_csv(combined, "/Users/tomashegewisch/data_block/scraped_websites/all_the_news_articles.csv")
+# 
+# saveRDS(combined, file = "combined_all_articals.rds")
+# 
+# combined %>% count(site) %>% ggplot(aes(site, n)) + 
+#   geom_bar(stat="identity") + 
+#   coord_flip()
+
+```
+
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Data read in
+
+
+```{r echo=TRUE, fig.height=14}
+# # Call news article save this are the rdata files
+# news_articl_data <- readRDS(file = "tomas/combined_all_articals.rds") %>% 
+#   rename("urls_expanded_url" = "url", "article_text" =  "text")
+# # rename values to combine with tweets later
+# 
+# # tweet data as CSV.
+# twitter_data <- read_csv("tomas/covid_twitter.csv")
+# 
+# 
+# #Combine the news articles and the tweets together.
+# twiter_news <- inner_join(news_articl_data,twitter_data, by = "urls_expanded_url")
+# # remove the time aspect
+# twiter_news$created_at <- as.Date(twiter_news$created_at)
+# # save the combined data together
+# saveRDS(twiter_news, "tomas/all_tweets_and_news.rds")
+# 
+# # create a tidy version of the data. (remove stop words)
+# tidy_words <- twiter_news %>%
+#   unnest_tokens(word, article_text) %>% 
+#   anti_join(stop_words)
+# 
+# # save Rdata file
+# saveRDS(twiter_news, "tomas/tidy_version_of_all_tweets_news_one_per_row.rds")
+# 
+# # read Rdata file if you want un filtered
+# twiter_news <- readRDS("tomas/tidy_version_of_all_tweets_news_one_per_row.rds")
+# 
+# # filter out informatiom that does not need to be in the data set
+# 
+# twiter_news <- twiter_news %>% filter(str_detect(article_text,regex( "covid19|covid-19|corona|virus|pandemic|flu|hospital|lockdown|government|gbv|coronavirus|SARS-CoV-2", ignore_case = TRUE)))
+# saveRDS(twiter_news, "text_data_filtered_by_key_words.rds")
+# 
+# #Create tidy formate
+#   tidy_tweets_news <- twiter_news %>%
+# unnest_tokens(word, article_text) %>% 
+#   filter(!word %in% stop_words$word, str_detect(word, "[a-z]"))
+# saveRDS(tidy_tweets_news, "tidy_tweets_news.rds")
+# 
+# # create word frequency
+# frequency <- tidy_tweets_news %>% 
+#   group_by(name) %>% 
+#   count(word, sort = TRUE) %>% 
+#   left_join(tidy_tweets_news %>%
+#               group_by(name) %>% 
+#               summarise(total = n())) %>%
+# mutate(freq = n/total)
+# 
+# 
+# frequency <- frequency %>%
+#   select(name, word, freq) %>% 
+#   spread(name, freq)
+# # save to file
+# saveRDS(frequency, "newssites_word_freq_news_site_per_col.rds")
+# 
+# 
+# filtered_data %>% 
+#   count(site) %>% ggplot(aes(site, n)) + 
+#   geom_bar(stat="identity") + 
+#   coord_flip()
+
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Looking at live covid-19 data 
+
+```{r echo=TRUE, fig.height=12, message=FALSE, warning=FALSE}
+url_for_caes <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_confirmed_global.csv"
+url_for_deaths <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_deaths_global.csv"
+url_for_recoverd <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/time_series_covid19_recovered_global.csv"
+
+covid_data_john <- read_csv(url_for_caes)
+covid_data_john_sa <- covid_data_john %>% filter(`Country/Region` == "South Africa")%>%select(-c("Long", "Lat", "Province/State", "Country/Region"))
+col_names <- names(covid_data_john_sa)
+
+#Pivot
+covid_data_john_sa <- covid_data_john_sa %>% pivot_longer(col_names, names_to = "date", values_to = "cases")
+
+#Below we have removed the 0 values -> 65 is the last occurrence of 0.
+covid_data_john_sa <- slice(covid_data_john_sa, 44:length(covid_data_john_sa[[1]]))
+covid_data_john_sa <- covid_data_john_sa %>% mutate(date = mdy(date) )
+
+#--------------------deaths
+sa_deaths <- read_csv(url_for_deaths)
+sa_deaths <- sa_deaths %>% filter(`Country/Region` == "South Africa")%>%select(-c("Long", "Lat", "Province/State", "Country/Region"))
+sa_deaths <- sa_deaths %>% pivot_longer(col_names, names_to = "date", values_to = "deaths")
+sa_deaths <- slice(sa_deaths, 44:length(sa_deaths[[1]]))
+sa_deaths <- sa_deaths %>% mutate(date = mdy(date) )
+
+#---------------recovered
+sa_recoverd <- read_csv(url_for_recoverd)
+sa_recoverd <- sa_recoverd %>% filter(`Country/Region` == "South Africa")%>%select(-c("Long", "Lat", "Province/State", "Country/Region"))
+sa_recoverd <- sa_recoverd %>% pivot_longer(col_names, names_to = "date", values_to = "recoverd")
+sa_recoverd <- slice(sa_recoverd, 44:length(sa_recoverd[[1]]))
+sa_recoverd <- sa_recoverd %>% mutate(date = mdy(date) )
+
+# Inner joins to combines all three data sets
+covid_d_r_c<-inner_join(inner_join(sa_deaths, sa_recoverd, by = "date"),covid_data_john_sa, by = "date") %>% 
+  pivot_longer(c("cases", "deaths","recoverd"),names_to = "key",values_to = "values")
+
+saveRDS(covid_d_r_c, "tomas/covid_data_jh_for_plot.rds")
+  
+# Notes:
+# This takes three data sets and combines it together to make a plot that shows death, recovered and cases
+# The data is collected from John Hopkins University's Github page set up specifically for Covid-19 data collection.
+```
+
+Column {}
+-----------------------------------------------------------------------
+
+### RUN THIS TO GET ALL THE VALUES UP
+```{r echo=TRUE}
+#When the computer restarts run this section to get all the values into ram
+# <<<<<<<<run this command>>>>>>>>>
+twiter_news <- read_rds("tomas/text_data_filtered_by_key_words.rds")
+tidy_tweets_news <- read_rds("tomas/tidy_tweets_news.rds")
+frequency <- read_rds("tomas/newssites_word_freq_news_site_per_col.rds")
+topic_model <- read_rds("tomas/topic_model_final.RDS")
+covid_d_r_c <- read_rds("tomas/covid_data_jh_for_plot.rds")
+
+person_ent <-read_rds("tomas/person_ent_for_data_set.rds")
+location_ent <-read_rds("tomas/location_ent_for_data_set.rds")
+beep()
+```
+
+Column {}
+-----------------------------------------------------------------------
+
+### Plot comparing two news Organisation’s content
+
+#### Words taken from the articles are grouped by publication. This then creates a list of words and corresponding frequency used by each publication. Words are then plotted on a chart in the location that corresponds its frequency. The red line then indicates words that are common among both publications. Top right shows words that are both frequently used and as well as common amount’s both publications 
+```{r echo=TRUE}
+library(scales)
+
+plot1 <- ggplot(frequency, aes(BusinessTech,`Daily Maverick`)) + 
+  geom_jitter(alpha = 0.1, size = 2.5, width = 0.25, height = 0.25, color = "pink") + 
+  geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) + 
+  scale_x_log10(labels = percent_format()) + 
+  scale_y_log10(labels = percent_format()) + 
+  geom_abline(color = "red")
+
+
+```
+
+Column {}
+-----------------------------------------------------------------------
+
+### Plot comparing two news Organisation’s content
+
+```{r echo=FALSE}
+plot1
+```
+
+
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Plot comparing two news Organisation’s content
+
+```{r echo=TRUE}
+plot2 <- ggplot(frequency, aes(eNCA,News24)) + 
+  geom_jitter(alpha = 0.1, size = 2.5, width = 0.25, height = 0.25, color = "pink") + 
+  geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) + 
+  scale_x_log10(labels = percent_format()) + 
+  scale_y_log10(labels = percent_format()) + 
+  geom_abline(color = "red")
+
+```
+
+Column {}
+-----------------------------------------------------------------------
+### Plot comparing two news Organisation’s content
+
+```{r echo=FALSE}
+plot2
+```
+
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Plot comparing two news Organisation’s content
+
+```{r echo=TRUE}
+plot3 <- ggplot(frequency, aes(`Mail & Guardian`,`SABC News`)) + 
+  geom_jitter(alpha = 0.1, size = 2.5, width = 0.25, height = 0.25, color = "pink") + 
+  geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) + 
+  scale_x_log10(labels = percent_format()) + 
+  scale_y_log10(labels = percent_format()) + 
+  geom_abline(color = "red")
+
+```
+
+Column {}
+-----------------------------------------------------------------------
+### Plot comparing two news Organisation’s content
+
+```{r echo=FALSE}
+plot3
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+### Plot comparing two news Organisation’s content
+
+```{r echo=TRUE}
+plot4 <- ggplot(frequency, aes(BusinessTech,`MyBroadband`)) + 
+  geom_jitter(alpha = 0.1, size = 2.5, width = 0.25, height = 0.25, color = "pink") + 
+  geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) + 
+  scale_x_log10(labels = percent_format()) + 
+  scale_y_log10(labels = percent_format()) + 
+  geom_abline(color = "red")
+```
+
+Column {}
+-----------------------------------------------------------------------
+### Plot comparing two news Organisation’s content
+
+```{r echo=FALSE}
+plot4
+```
+
+
+
+Column {}
+-----------------------------------------------------------------------
+### Plot comparing two news Organisation’s content
+```{r echo=TRUE}
+plot5 <- ggplot(frequency, aes(eNCA,`SABC News`)) + 
+  geom_jitter(alpha = 0.1, size = 2.5, width = 0.25, height = 0.25, color = "pink") + 
+  geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) + 
+  scale_x_log10(labels = percent_format()) + 
+  scale_y_log10(labels = percent_format()) + 
+  geom_abline(color = "red")
+```
+
+Column {}
+-----------------------------------------------------------------------
+### Plot comparing two news Organisation’s content
+
+```{r echo=FALSE}
+plot5
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Distribution of all the news sites over time.
+```{r echo=TRUE}
+# twiter_news %>% 
+# ggplot(aes(x = created_at, fill = site)) + 
+#   geom_histogram(position = "identity", bins = 20, show.legend = FALSE) +
+#   facet_wrap(~site, ncol =4)
+```
+
+Column {}
+-----------------------------------------------------------------------
+
+### Distribution of all the news sites over time.
+```{r echo=FALSE, fig.height=10, fig.width=12}
+twiter_news %>% 
+ggplot(aes(x = created_at, fill = site)) + 
+  geom_histogram(position = "identity", bins = 20, show.legend = FALSE) +
+  facet_wrap(~site, ncol =4)
+```
+
+Column {}
+-----------------------------------------------------------------------
+
+### Comparing using the log odds ratio between two publications 
+```{r echo=TRUE}
+#
+#
+#<<<CODE TAKEN FROM TEXT BOOK>>>
+#
+#
+
+word_ratios <- tidy_tweets_news %>% 
+  count(word, screen_name) %>% filter(sum(n) >= 10) %>%
+  ungroup() %>% 
+  spread(screen_name, n, fill = 0) %>% 
+  mutate_if(is.numeric, funs((. + 1) / sum(. + 1))) %>% 
+  mutate(logratio = log(eNCA / News24)) %>% 
+  arrange(desc(logratio))
+
+plot_logs_data <- word_ratios %>% group_by(logratio < 0) %>% top_n(15, abs(logratio)) %>% ungroup() %>% mutate(word = reorder(word, logratio)) 
+
+plot_logs <- ggplot(plot_logs_data, aes(word, logratio, fill = logratio < 0)) + geom_col(show.legend = FALSE) + coord_flip() + ylab("log odds ratio (eNCA/News24)") + scale_fill_discrete(name = "", labels = c("eNCA", "News24"))
+```
+Column {}
+-----------------------------------------------------------------------
+
+### Comparing using the log odds ratio between two publications 
+
+```{r echo=FALSE}
+plot_logs
+```
+
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Comparing positive versus negative sentiment with Covid-19 cases 
+
+#### This plot shows the negative (red) and positive (green) sentiment values calculated from all the articles’ text. This is a dictionary based approach which uses predefined sentiment values for each word. Each words sentiment value is added up per article. A total sentiment score per article is then calculated and plotted. Negative and positive values are added to the sum of the article which balances it out. News articles being primarily negative (No one reports when a bank was not robbed) cause there to be such a large negative proportion. Dictionary approached does not take into account context however when large bodies of text is used, the accuracy will go up, where texts with fewer words will have more false results.  
+
+```{r echo=TRUE, fig.height=10}
+
+# sentimnet_per_article_negitive <- tidy_tweets_news %>%
+#   filter(created_at > ymd("2020-04-01")) %>% 
+#   inner_join(get_sentiments("afinn"), by  = "word") %>% 
+#   group_by(urls_expanded_url) %>% 
+#   summarise(sentiment = sum(value)) %>% 
+#   filter(sentiment<0) %>% 
+#   mutate(sentiment = abs(sentiment))
+# 
+# sentimnet_per_article_positive <- tidy_tweets_news %>%
+#   filter(created_at > ymd("2020-04-01")) %>% 
+#   inner_join(get_sentiments("afinn"), by  = "word") %>% 
+#   group_by(urls_expanded_url) %>% 
+#   summarise(sentiment = sum(value)) %>% 
+#   filter(sentiment>0) %>% 
+#   mutate(sentiment = abs(sentiment))
+# 
+#   negitive_values <-  inner_join(sentimnet_per_article_negitive,twiter_news, by = "urls_expanded_url") %>% 
+#     unique() %>% 
+#     filter(created_at > ymd("2020-04-01")) %>%  select(urls_expanded_url, sentiment, created_at)
+#   positive_values <-  inner_join(sentimnet_per_article_positive,twiter_news, by = "urls_expanded_url") %>% 
+#     unique() %>% 
+#     filter(created_at > ymd("2020-04-01")) %>%  select(urls_expanded_url, sentiment, created_at)
+#   
+# covid_d_r_c <-  covid_d_r_c %>% filter(date > ymd("2020-04-01")) %>% filter(key == "cases")
+# beep()
+# saveRDS(negitive_values, file = "tomas/negitive_values.rds")
+# saveRDS(positive_values, file = "tomas/positive_values.rds")
+
+negitive_values <- readRDS(file = "tomas/negitive_values.rds")
+positive_values <- readRDS(file = "tomas/positive_values.rds")
+sentiment_plot <- ggplot()+
+    geom_line(covid_d_r_c, mapping = aes(x = date, y=values, color = "blue"))+
+    geom_line(data=negitive_values,aes(x=created_at,y=sentiment*10,color='red'))+
+    geom_line(data=positive_values,aes(x=created_at,y=sentiment*10,color='green'))+
+    xlab('x')+
+    ylab('density') + 
+    scale_colour_manual(name = 'Key', 
+         values =c('blue'='blue','green'='green','red'='red' ), labels = c('Cases','Positive','Negative' ))
+```
+
+Column {}
+-----------------------------------------------------------------------
+
+### Sentiment plot
+
+
+```{r echo=FALSE}
+sentiment_plot
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Words separated by their sentiment that are popular in the articles  
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# tidy_tweets_news %>% 
+#   inner_join(get_sentiments("bing")) %>% 
+#   count(word, sentiment, sort = TRUE) %>% 
+#   acast(word ~ sentiment, value.var = "n", fill = 0)%>%
+#   comparison.cloud(colors = c("gray20", "gray80"), max.words = 100)
+```
+
+### Words separated by their sentiment that are popular in the articles  
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+tidy_tweets_news %>% 
+  inner_join(get_sentiments("bing")) %>% 
+  count(word, sentiment, sort = TRUE) %>% 
+  acast(word ~ sentiment, value.var = "n", fill = 0)%>%
+  comparison.cloud(colors = c("gray20", "gray80"), max.words = 100)
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Extract the most positive words
+This shows a list of the most popular words found in the articles grouped by their sentiment(negative or positive)
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# bing_word_counts <- tidy_tweets_news %>% 
+#   inner_join(get_sentiments("bing")) %>% 
+#   count(word, sentiment, sort = TRUE) %>% 
+#   ungroup()
+# 
+# bing_plot <- bing_word_counts %>% 
+#   group_by(sentiment) %>% 
+#   top_n(10) %>% 
+#   ungroup() %>% 
+#   mutate(word = reorder(word, n))
+# 
+# saveRDS(bing_plot, file = "tomas/bing_plot.rds")
+bing_plot <- readRDS(file = "tomas/bing_plot.rds")
+bing_plot1 <-  ggplot(bing_plot, aes(word, n, fill = sentiment)) + 
+  geom_col(show.legend = FALSE) + 
+  facet_wrap(~sentiment, scales = "free_y") + 
+  labs(y = "Contribution to sentiment", x = NULL) +
+coord_flip()
+
+```
+
+Column {}
+-----------------------------------------------------------------------
+
+### Extract the most positive words
+This shows a list of the most popular words found in the articles grouped by their sentiment(negative or positive)
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+bing_plot1
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Code for the NER to find all people
+
+```{r echo=TRUE, fig.height=10}
+# # NER for people
+# 
+# twiter_news <- read_rds("/Users/tomashegewisch/data_block/secound project/text_data_filtered_by_key_words.rds")
+# 
+# location_ent <- tibble(
+#   people = factor(),
+# )
+# # This makes sure that we can redue the computation time.
+# test_the_working <- twiter_news %>% select(article_text)
+# for (i in seq_along(test_the_working[[1]])){
+#   result = tryCatch({
+#     person_ent_per_artical <- person_entity(test_the_working[[1]][i])
+#     person_ent_per_artical <- map(person_ent_per_artical,~data.frame(.))
+#     person_ent_per_artical <- map_dfr(person_ent_per_artical,~mutate_all(.,as.character)) 
+#     person_ent_per_artical <- as_tibble(person_ent_per_artical) %>% 
+#       rename("people"=".") %>% 
+#       filter(people != "The", people != "Steve Wozniak",people != "Headline Share", people != "Don", people != "Bill", people!= "Tiger Brands", people != "Bob")
+#     person_ent <- rbind(person_ent_per_artical,person_ent)
+#     print(i)
+#   }, error = function(e) {
+#     print("error, SKIP")
+#   })
+# }
+# 
+# # Once we have done all them, we must save the data.
+# saveRDS(person_ent, "/Users/tomashegewisch/data_block/secound project/person_ent_for_data_set.rds")
+# person_ent <- person_ent %>% 
+# count(people, sort = TRUE) %>% 
+#   filter(people != "The", people != "Steve Wozniak",people != "Headline Share", people != "Don", people != "Bill", people!= "Tiger Brands", people != "Bob")
+# 
+# # Once we have done all them, we must save the data.
+# saveRDS(person_ent, "/Users/tomashegewisch/data_block/secound project/person_ent_for_data_set.rds")
+
+```
+
+Column {}
+-----------------------------------------------------------------------
+
+### Display popular people 
+```{r echo=TRUE}
+person_ent <- readRDS(file = "tomas/person_ent_for_data_set.rds")
+# Display
+person_ent <- person_ent %>% 
+  top_n(20)
+person_plot <- ggplot(person_ent) +
+  geom_col(aes(people,n)) + 
+  coord_flip()
+
+```
+
+Column {}
+-----------------------------------------------------------------------
+
+### Display popular people
+
+```{r echo=FALSE}
+person_plot
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Plot to see what the sentiment around people are
+
+#### Using Named Entity recognition names of people were extracted from all the articles.  Sentiment analysis was done on articles that included the extracted names,  generating a sentiment score. This score was then divided by the number of occurrences of the particular name. This score is plotted with the person name.
+
+```{r echo=TRUE, fig.height=15, message=FALSE, warning=FALSE}
+#What is the sentimnet around particular people
+
+  #tidy_trump_tweets<-tidy_trump_tweets %>%
+      #mutate_at("word", funs(wordStem((.), language="en")))
+
+person_ent <-read_rds("tomas/person_ent_for_data_set.rds")
+
+# combine names
+hold_name_cr <- person_ent %>% 
+filter(people=="Ramaphosa"|people =="Cyril Ramaphosa"|people =="RAM") %>% 
+  mutate(people="Cyril Ramaphosa") %>% 
+  mutate(n = sum(n)) %>% 
+  unique() 
+
+hold_name_dt  <- person_ent %>% 
+filter(people=="Donald"|people =="Trump"|people == "Donald Trump") %>% 
+  mutate(people="Donald Trump") %>% 
+  mutate(n = sum(n)) %>% 
+  unique()
+
+hold_name_gf  <- person_ent %>% 
+filter(people=="George Floyd"|people =="Floyd"|people =="George"|people=="George") %>% 
+  mutate(people="George Floyd") %>% 
+  mutate(n = sum(n)) %>% 
+  unique()
+
+hold_name_js <- person_ent %>% 
+  filter(people=="John Steenhuisen"|people =="John") %>%
+  mutate(people="John Steenhuisen") %>%
+  mutate(n = sum(n)) %>% 
+  unique()
+
+
+hold_name_NDZ <- person_ent %>% 
+  filter(people=="Nkosazana"|people =="Zuma"|people =="Dlamini Zuma") %>%
+  mutate(people="Dlamini Zuma") %>%
+  mutate(n = sum(n)) %>% 
+  unique()
+  
+
+# now we have to remove the original ones
+person_ent <- person_ent %>% 
+   filter(
+         people!="George Floyd", 
+         people !="Floyd",
+         people!="Donald",
+         people !="Trump",
+         people != "Donald Trump",
+         people!="Ramaphosa",
+         people !="Cyril Ramaphosa",
+         people != "RAM", 
+         people != "John Steenhuisen", 
+         people != "John", 
+         people != "George",
+         people !="Nkosazana",
+         people !="Zuma",
+         people !="Dlamini Zuma",
+         people != "Nelson Mandela Bay")
+
+#now add the combined again
+person_ent <- rbind(hold_name_cr,hold_name_dt ,hold_name_gf,hold_name_js, hold_name_NDZ, person_ent) %>% arrange(desc(n))
+
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Plot the 20 most popular names
+```{r echo=TRUE}
+person_ent <- person_ent %>% 
+  top_n(20)  
+person_plot2 <- ggplot(person_ent) +
+  geom_col(aes(people, n)) +
+  coord_flip()
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Plot the 20 most popular names
+```{r echo=FALSE}
+person_plot2
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Named Entity recognition and sentiment analysis on prominent people in the news 
+
+Using Named Entity recognition (NER), names of people were extracted from all the articles.  The names were grouped in order of count. Sentiment analysis was done on articles that included the top 20 extracted names,  generating a sentiment score that was linked to the names. The scores were then divided by the number of occurrences of the particular name. Dividing the sentiment by the number of occurrence, shows the names that are associated with high amounts of negativity and not just a high accumulated negativity score. It took almost 9 hours to run this code.
+
+```{r echo=TRUE, fig.height=6}
+#rm(hold_name_cr, hold_name_dt, hold_name_gf)
+
+#saveRDS(person_ent, )
+# score_per_person <- tibble(
+#   name = factor(),
+#   value = double(),
+# )
+# top_value <- 20
+# top_10_people <- person_ent %>%  top_n(top_value)
+# for (i in seq_along(1:top_value)){
+#   temps<- twiter_news %>% 
+#     filter(str_detect(article_text,regex(top_10_people[[1]][i], ignore_case = TRUE)))  %>% 
+#     unnest_tokens(word, article_text) %>% 
+#     anti_join(stop_words) %>% 
+#     inner_join(get_sentiments("afinn"), by  = "word") %>% 
+#     summarise(sentiment = sum(value))
+#     temp <- tibble(
+#       name = factor(top_10_people[[1]][i]),
+#       value = as.numeric(temps[[1]][1])/as.numeric(top_10_people[[2]][i])
+#     )
+#   score_per_person <- bind_rows(temp,score_per_person)
+# }
+# saveRDS(score_per_person, "score_per_person.rds")
+
+beep()
+
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### The Plot for the above code
+```{r echo=TRUE}
+# Run this code if you  
+score_per_person <-read_rds("tomas/score_per_person.rds")
+person_plot3 <- ggplot(score_per_person)+ 
+  geom_col(aes(name, value*-1)) + 
+  coord_flip()
+```
+Column {}
+-----------------------------------------------------------------------
+
+### The Plot for the above code
+
+```{r echo=FALSE}
+person_plot3
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Word cloud showing the number of people
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# plot_wc <- person_ent %>% 
+#   with(wordcloud(people, n, max.words = 50))
+```
+
+### Word cloud showing the number of people
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+plot_wc <- person_ent %>% 
+  with(wordcloud(people, n, max.words = 50))
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Code to get the location data
+```{r eval=FALSE, include=FALSE}
+
+# you can also remove the line that is below
+twiter_news <- read_rds("/Users/tomashegewisch/data_block/secound project/text_data_filtered_by_key_words.rds")
+
+location_ent <- tibble(
+  location = factor(),
+)
+# This makes sure that we can redue the computation time.
+test_the_working <- twiter_news %>% select(article_text)
+for (i in seq_along(test_the_working[[1]])){
+  result = tryCatch({
+    location_ent_per_artical <- location_entity(test_the_working[[1]][i])
+    location_ent_per_artical <- map(location_ent_per_artical,~data.frame(.))
+    location_ent_per_artical <- map_dfr(location_ent_per_artical,~mutate_all(.,as.character)) 
+    location_ent_per_artical <- as_tibble(location_ent_per_artical) %>% 
+      rename("location"=".") %>% 
+      filter(location != "Headline Share", location != "Don", location != "Bill", location!= "Tiger Brands", location != "Bob")
+    location_ent <- rbind(location_ent_per_artical,location_ent)
+
+    print(i)
+  }, error = function(e) {
+    print(e)
+  })
+}
+
+location_ent <- location_ent %>% 
+  count(location, sort = TRUE)
+
+# Once we have done all them, we must save the data.
+saveRDS(location_ent, "/Users/tomashegewisch/data_block/secound project/location_ent_for_data_set.rds")
+beep()
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Sentiment around locations
+```{r echo=TRUE, fig.height=12}
+# location_ent <-read_rds("tomas/location_ent_for_data_set.rds")
+# 
+# hold_name_sa <- location_ent %>% 
+# filter(location=="South"|location =="South Africa") %>% 
+#   mutate(location="South Africa") %>% 
+#   mutate(n = sum(n)) %>% 
+#   unique() 
+# 
+# hold_name_ct <- location_ent %>% 
+# filter(location=="Cape"|location =="Cape Town") %>% 
+#   mutate(location="Cape Town") %>% 
+#   mutate(n = sum(n)) %>% 
+#   unique() 
+# 
+# location_ent <- location_ent %>% filter(location != "South Africa",
+#                                         location != "Cape Town", 
+#                                         location != "South")
+# 
+# 
+# location_ent <- rbind(hold_name_sa,hold_name_ct,location_ent)
+# 
+# score_per_location <- tibble(
+#   name = factor(),
+#   value = double(),
+# )
+# top_location <- location_ent %>%  top_n(20)
+# for (i in seq_along(1:20)){
+#   temps<- twiter_news %>% 
+#     filter(str_detect(article_text,regex(top_location[[1]][i], ignore_case = TRUE)))  %>% 
+#     unnest_tokens(word, article_text) %>% 
+#     anti_join(stop_words) %>% 
+#     inner_join(get_sentiments("afinn"), by  = "word") %>% 
+#     summarise(sentiment = sum(value))
+#     temp <- tibble(
+#       name = factor(top_location[[1]][i]),
+#       value = as.numeric(temps[[1]][1])/as.numeric(top_location[[2]][i])
+#       # divided by the number of occurences to make sure that the values that have large occurrence to not skew when a word gets used alot, version when as word is less used but still has very negitive words around it.
+#     )
+#   score_per_location <- bind_rows(temp,score_per_location)
+# }
+# 
+# saveRDS(score_per_location, "tomas/score_per_location.rds")
+
+score_per_location <- readRDS(file = "tomas/score_per_location.rds")
+score_plot <-  ggplot(score_per_location)+ 
+  geom_col(aes(name, value*-1)) + 
+  coord_flip()
+```
+Column {}
+-----------------------------------------------------------------------
+```{r echo=FALSE}
+score_plot
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Wordcloud of popular locations location
+```{r echo=TRUE}
+# location_ent <- readRDS(file = "tomas/location_ent.rds")
+# location_ent %>% 
+#   with(wordcloud(location, n, max.words = 50))
+```
+
+
+### Wordcloud of popular locations location
+```{r echo=FALSE}
+location_ent <- readRDS(file = "tomas/location_ent.rds")
+location_ent %>%
+  with(wordcloud(location, n, max.words = 50))
+```
+
+
+

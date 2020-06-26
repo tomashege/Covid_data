@@ -1,0 +1,931 @@
+---
+title: "An analysis of  COVID-19 Media Reports"
+output: 
+  flexdashboard::flex_dashboard:
+    theme: cosmo
+    orientation: rows
+    vertical_layout: scroll
+    source_code: embed
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(rtweet) 
+library(tidytext)
+library(ggpubr) 
+library(tidyverse)
+library(ggplot2)
+library(topicmodels)
+library(wordcloud)
+library(RColorBrewer)
+library(ggwordcloud)
+library(lubridate)
+```
+Column {.tabset}
+-----------------------------------------------------------------------
+### Intro
+
+#### Introduction
+This project was done by Tomas Albert Hegewisch (**21071926**) and André Schoeman (**21185050**). We started off by gathering up to 3200 recent tweets per news site of various news sites using Rtweet. These News sites were News24, EWN,eNCA, MyBroadband, Mail & Guardian, Sowetan LIVE, The Daily Maverick, BusinessTech, SABC News, The Daily Vox and GroundUp. Thereafter, by using the Selenium package, the links posted in the tweets were scraped to gather all the articles relating to it. Eventually, this lead to a dataset of 19765 tweets and their corresponding articles that relates to certain keywords identified. Some tweets were left out of the final dataset as there wasn't a corresponding article for it.
+
+
+##### This code was written to allow for the scraped data to be read in, and then saved to rds files in the folder, to allow for quicker display and as 16gb RAM even gave issues with the full dataset.
+```{r echo=TRUE, fig.height=7}
+
+# #This code was used to gather up to 3200 tweets from each of the news sites using Rtweet.
+# # covid_twitter <- get_timelines(( "News24, ewnupdates, eNCA, mybroadband, mailandguardian, SowetanLIVE, dailymaverick, BusinessTechSA, SABCNews, The Daily Vox, GroundUp_News"), n = 3200)
+# # save_as_csv(covid_twitter, "data_out/covid_twitter.csv", prepend_ids = TRUE, na = "",
+# #   fileEncoding = "UTF-8")
+# 
+# # Call news article rds file and read it in, while also renaming the URL column to be able to join later
+# news_article_data <- readRDS(file = "data_in/combined_all_articles.rds") %>% 
+#   rename("urls_expanded_url" = "url", "article_text" =  "text")
+# 
+# # Read in the twitter data from a CSV.
+# twitter_data <- read_csv("data_in/covid_twitter.csv")
+# 
+# #Combine the news articles and the tweets together.
+# twitter_news <- inner_join(news_article_data,twitter_data, by = "urls_expanded_url")
+# 
+# # reformat the time date to be usable in calculations
+# twitter_news$created_at <- as.Date(twitter_news$created_at)
+# 
+# # save the combined data together as a RDS file to just be loaded in the future as this data won't change
+# saveRDS(twitter_news, "data_out/all_tweets_and_news.rds")
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Creating a tidy version of twitter text
+
+```{r echo=TRUE}
+# twitter_news <- readRDS(file= "data_out/all_tweets_and_news.rds")
+# 
+# # create a tidy version of the data. (remove stop words as well as any words of 2 characters and less)
+# tidy_words <- twitter_news %>%
+#   unnest_tokens(word, article_text) %>% 
+#   anti_join(stop_words) %>% 
+#   filter(nchar(word) > 2)
+# 
+# # save Rdata file
+# saveRDS(twitter_news, "data_out/tidy_version_of_all_tweets_news_one_per_row.rds")
+
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Filtering out articles/tweets that don't include information of our keywords
+#### We narrowed down the article/tweet set to include topics that relate to the most common topics before and during lockdown in South Africa.
+```{r echo=TRUE}
+# twitter_news <- readRDS(file= "data_out/all_tweets_and_news.rds")
+# 
+# # filter out articles that does not need to be in the data set (don't relate to any of the keywords set)
+# twitter_news <- twitter_news %>% filter(str_detect(article_text,regex( "covid19|covid-19|corona|virus|pandemic|flu|hospital|lockdown|government|gbv|coronavirus|SARS-CoV-2", ignore_case = TRUE)))
+# saveRDS(twitter_news, "data_out/text_data_filtered_by_key_words.rds")
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Creating a tidy version of the news articles
+
+```{r echo=TRUE}
+# twitter_news <- readRDS(file= "data_out/text_data_filtered_by_key_words.rds")
+# 
+# #Create a tidy format of filtered data of the article text
+# tidy_tweets_news <- twitter_news %>%
+# unnest_tokens(word, article_text) %>% 
+#   filter(!word %in% stop_words$word, str_detect(word, "[a-z]"))
+# 
+# saveRDS(tidy_tweets_news, "data_out/tidy_tweets_news.rds")
+
+
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Articles/Tweets over time
+
+#### This plot shows when the different newssites posted their content. Twitter only gave up to 3200 latest tweets per newssite, which limited us in the sense that some news sites post very regularly (such as News24) and thus only had access to data over the last month, vs Groundup, which gave data over a stretched period of time.
+```{r echo=TRUE}
+
+twitter_news <- readRDS(file= "data_out/text_data_filtered_by_key_words.rds")
+#Plot the twitter data to show tweets/articles over time
+articleovertime<- twitter_news %>% 
+ggplot() +
+  geom_point(mapping = aes(x = created_at, y = site))+
+  labs(x="Date Posted", y="News Sites")
+```
+
+
+
+### Articles/Tweets over time
+
+
+```{r echo=FALSE}
+articleovertime
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+### Frequency of words over time
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# create word frequency
+
+# frequency <- tidy_tweets_news %>% 
+#   group_by(name) %>% 
+#   count(word, sort = TRUE) %>% 
+#   left_join(tidy_tweets_news %>%
+#               group_by(name) %>% 
+#               summarise(total = n())) %>%
+# mutate(freq = n/total)
+# 
+# frequency <- frequency %>%
+#   select(name, word, freq) %>% 
+#   spread(name, freq)
+# # save to file
+# saveRDS(frequency, "data_out/newssites_word_freq_news_site_per_col.rds")
+# 
+# filtered_data %>% 
+#   count(site) %>% ggplot(aes(site, n)) + 
+#   geom_bar(stat="identity") + 
+#   coord_flip()
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+### Creating a tokenised version of twitter data and clean further
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, fig.height=7}
+#Cleaning of tweet text
+data_filtered <- readRDS("data_out/text_data_filtered_by_key_words.rds")
+
+# Delete Links in the Tweets
+data_filtered$text <- gsub("http.*", "", data_filtered$text)
+data_filtered$text <- gsub("https.*", "", data_filtered$text)
+data_filtered$text <- gsub("&amp;", "&", data_filtered$text)
+data_filtered$text <-  gsub("@\\S*", "", data_filtered$text) 
+data_filtered$text  <-  gsub("[\r\n]", "", data_filtered$text)
+data_filtered$text  <-  gsub("[[:punct:]]", "", data_filtered$text)
+
+# Remove punctuation, convert to lowercase, seperate all words
+data_clean <- data_filtered %>%
+  unnest_tokens(word, text)
+
+# Load list of stop words - from the tidytext package
+data("stop_words")
+
+# Remove stop words from your list of words
+cleaned_tweet_words <- data_clean %>%
+  anti_join(stop_words) %>% 
+   filter(nchar(word) > 2)
+
+# save Rdata file
+saveRDS(cleaned_tweet_words, "data_out/cleaned_tweets_text.rds")
+
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Top 15 words from the tweets
+
+#### This plot shows the top 15 unique words that occured the most accross all the tweets analysed. These words can often be used by the news agencies to get people to click on the links to read more, or even attract a wider audience to get more interaction with their content. It is interesting to note that all the top words were widely and often used before and during the pandemic. 
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# Plot the top 15 words
+# cleaned_tweet_words <- readRDS(file= "data_out/cleaned_tweets_text.rds")
+
+top_15_tweets <- cleaned_tweet_words %>%
+  count(word, sort = TRUE) %>%
+  top_n(15) %>%
+  mutate(word = reorder(word, n)) 
+
+top_15_tweets_plot <- ggplot(top_15_tweets, aes(x = word, y = n)) +
+  geom_col() +
+  xlab(NULL) +
+  coord_flip() +
+  labs(y = "Count",
+       x = "Unique words",
+       title = "Count of unique words found in tweets",
+       subtitle = "Stop words removed from the list")
+```
+
+
+### Top 15 unique words from the tweets
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+top_15_tweets_plot
+```
+
+Column {}
+-----------------------------------------------------------------------
+
+### NRC Sentiment for articles
+
+#### The sentiment of the articles were calculated with NRC to classify words on different emotions, and from the data a pie chart was plotted to show the difference in sentiment. 
+```{r echo=TRUE}
+cleaned_article_words <- readRDS(file = "data_out/tidy_tweets_news.rds")
+# nrc <- get_sentiments("nrc")
+# nrc_articles <- cleaned_article_words %>%
+#   inner_join(nrc, by="word")
+# 
+# # view(nrc_words)
+# pie_articles<- nrc_articles %>%
+#   group_by(sentiment) %>% # group by sentiment type
+#   tally %>% # counts number of rows
+#   arrange(desc(n)) # arrange sentiments in descending order based on frequency
+# 
+# saveRDS(pie_articles, file = "data_out/pie_articles.rds")
+pie_articles <- readRDS(file = "data_out/pie_articles.rds")
+sentiment_articles <- ggpubr::ggpie(pie_articles, "n", label = "sentiment", 
+      fill = "sentiment", color = "white", 
+      palette = "Spectral")
+```
+
+
+### NRC Sentiment for articles in Pie Chart
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+sentiment_articles
+```
+
+
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Word Cloud Top Words - Articles
+
+#### The Word Cloud shows the top 50 words accross all the articles.
+```{r echo=TRUE}
+
+
+words_count<- cleaned_article_words %>% 
+  dplyr::count(word, sort = TRUE) # count number of occurences
+
+set.seed(42)
+wordcloudplotarticle<- head(words_count, 50)%>% 
+  ggplot(aes(label = word, size = n, color = word, replace = TRUE)) + 
+  geom_text_wordcloud_area() + 
+  scale_size_area(max_size = 26) + 
+  theme_minimal() 
+
+```
+
+### Word Cloud Top Words - Tweets
+
+#### The Word Cloud shows the top 50 words accross all the tweets.
+```{r echo=TRUE}
+words_count<- cleaned_tweet_words %>% 
+  dplyr::count(word, sort = TRUE) # count number of occurences
+
+set.seed(42)
+wordcloudplot<- head(words_count, 50)%>% 
+  ggplot(aes(label = word, size = n, color = word, replace = TRUE)) +  
+  geom_text_wordcloud_area() + 
+  scale_size_area(max_size = 26) + 
+  theme_minimal() 
+```
+
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Word Cloud Top Words - Articles
+
+```{r echo=FALSE}
+wordcloudplotarticle # show word cloud
+```
+
+### Word Cloud Top Words - Tweets
+
+```{r echo=FALSE}
+wordcloudplot # show word cloud
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Density plot of the number of articles over time
+
+#### The density plot shows the amount of articles/tweets that are gathered over time, and it is clearly seen that the bulk of the data was collected more recently.
+```{r echo=TRUE}
+articles_time <- readRDS("data_out/text_data_filtered_by_key_words.rds")
+articles_time$date <- date(articles_time$created_at)
+articles_time$hour <- hour(articles_time$created_at)
+densityvstime <- ggplot(articles_time, aes(x = date)) + 
+  geom_density()
+```
+
+
+### Density plot of the number of articles over time
+
+```{r echo=FALSE}
+
+densityvstime
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Wordcloud of the most popular hashtags used in the tweets by the news sites
+
+```{r echo=TRUE}
+# tweets_hashtag <- readRDS("data_out/text_data_filtered_by_key_words.rds")
+# tweets_hashtag$hashtags <- as.character(tweets_hashtag$hashtags)
+# tweets_hashtag$hashtags <- gsub("c\\(", "", tweets_hashtag$hashtags)
+# set.seed(1234)
+# wordcloud(tweets_hashtag$hashtags, min.freq=5, scale=c(7, 1), random.order=FALSE, rot.per=0.35, 
+#           colors=RColorBrewer::brewer.pal(8, "Dark2"))
+```
+
+Column {}
+-----------------------------------------------------------------------
+
+### Wordcloud of the most popular hashtags
+
+```{r echo=FALSE}
+tweets_hashtag <- readRDS("data_out/text_data_filtered_by_key_words.rds")
+tweets_hashtag$hashtags <- as.character(tweets_hashtag$hashtags)
+tweets_hashtag$hashtags <- gsub("c\\(", "", tweets_hashtag$hashtags)
+set.seed(1234)
+wordcloud(tweets_hashtag$hashtags, min.freq=5, scale=c(7, 1), random.order=FALSE, rot.per=0.35, 
+          colors=RColorBrewer::brewer.pal(8, "Dark2"))
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Wordcloud of users who retweeted the news tweets the most
+
+```{r echo=TRUE}
+# set.seed(1234)
+# wordcloud(tweets_hashtag$retweet_screen_name, min.freq=3, scale=c(4, 1), random.order=FALSE, rot.per=0.25, 
+#           colors=brewer.pal(8, "Dark2"))
+```
+
+Column {}
+-----------------------------------------------------------------------
+
+### Wordcloud of users who retweeted the news tweets the most
+
+```{r echo=FALSE}
+set.seed(1234)
+wordcloud(tweets_hashtag$retweet_screen_name, min.freq=3, scale=c(4, 1), random.order=FALSE, rot.per=0.25, 
+          colors=brewer.pal(8, "Dark2"))
+```
+
+Column {}
+-----------------------------------------------------------------------
+
+### Total sentiment counts based on tweets
+
+
+#### The total sentiment counts are for all the twitter words that were analysed. Negative sentiment was the highest, followed by positive and then fear.
+```{r echo=TRUE, fig.height=7}
+library(syuzhet)
+#  Converting tweets to ASCII to trackle strange characters
+# tweets <- iconv(tweets, from="UTF-8", to="ASCII", sub="")
+# removing retweets, in case needed 
+# tweets <-gsub("(RT|via)((?:\\b\\w*@\\w+)+)","",tweets)
+# removing mentions, in case needed
+# tweets <-gsub("@\\w+","",tweets)
+# ew_sentiment<-get_nrc_sentiment((tweets))
+# sentimentscores<-data.frame(colSums(ew_sentiment[,]))
+# names(sentimentscores) <- "Score"
+# sentimentscores <- cbind("sentiment"=rownames(sentimentscores),sentimentscores)
+# rownames(sentimentscores) <- NULL
+
+sentimentscores <- readRDS("data_out/sentimentscores.rds")
+sentiment_tweets <- ggplot(data=sentimentscores,aes(x=sentiment,y=Score))+
+  geom_bar(aes(fill=sentiment),stat = "identity")+
+  theme(legend.position="none")+
+  xlab("Sentiments")+ylab("Scores")+
+  ggtitle("Total sentiment based on scores")+
+  theme_minimal()
+```
+
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Total sentiment counts based on tweets
+
+```{r echo=FALSE}
+sentiment_tweets
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Number of articles per news site (in %)
+
+#### This plot shows the distribution of news gathered accross the different news sites. Some news sites may have less articles, as the scraping might not have been as successful, or if the twitter account posted more tweets without links to articles. Some News Sites, such as Groundup, almost always tweeted only links to news articles on their website.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, fig.height=10}
+data_all <- readRDS("data_out/text_data_filtered_by_key_words.rds")
+articles_percent <- data_all %>% 
+  select(screen_name) %>% 
+  group_by(screen_name) %>%
+  summarize(count=n())
+
+data1 <- data.frame(
+  category=articles_percent$screen_name,
+  count=articles_percent$count
+)
+data1$fraction = data1$count / sum(data1$count)
+data1$percentage = data1$count / sum(data1$count) * 100
+data1$ymax = cumsum(data1$fraction)
+data1$ymin = c(0, head(data1$ymax, n=-1))
+data1 <- data1 %>% mutate_if(is.numeric, round, digits=2)
+Source <- paste(data1$category, data1$percentage, "%")
+article_donut <- ggplot(data1, aes(ymax=ymax, ymin=ymin, xmax=4, xmin=3, fill=Source)) +
+                  geom_rect() +
+                  coord_polar(theta="y") +
+                  xlim(c(2, 4)) +
+                  theme_void() +
+                  theme(legend.position = "right")
+```
+
+
+
+### Number of articles per news site (in %)
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+article_donut
+```
+
+Column {}
+-----------------------------------------------------------------------
+
+### Network map
+
+#### The network map took Ngram token approach to look for words that are frequently used together in tweets. It then plots them on a network map to show how they are clustered together or related.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, fig.height=10}
+# data_filtered <- readRDS("data_out/text_data_filtered_by_key_words.rds")
+library(devtools)
+library(widyr)
+library(igraph)
+library(ggraph)
+
+# # remove punctuation, convert to lowercase, add id for each tweet
+# covid_paired_words <- data_filtered %>%
+#   select(text) %>%
+#   unnest_tokens(paired_words, text, token = "ngrams", n = 2)
+# 
+# covid_paired_words %>%
+#   count(paired_words, sort = TRUE)
+# 
+# covid_separated_words <- covid_paired_words %>%
+#   separate(paired_words, c("word1", "word2"), sep = " ")
+# 
+# covid_filtered <- covid_separated_words %>%
+#   filter(!word1 %in% stop_words$word) %>%
+#   filter(!word2 %in% stop_words$word)
+# 
+# covid_words_counts <- covid_filtered %>%
+#   count(word1, word2, sort = TRUE)
+# 
+# saveRDS(covid_words_counts, file = "data_out/covid_words_counts.rds")
+
+covid_words_counts <- readRDS("data_out/covid_words_counts.rds")
+network_plot <- covid_words_counts %>%
+        filter(n >= 50) %>%
+        graph_from_data_frame() %>%
+        ggraph(layout = "fr") +
+        geom_node_point(color = "darkslategray4", size = 3) +
+        geom_node_text(aes(label = name), vjust = 1.8, size = 3) +
+        labs(title = "Word Network: Tweets from different Media Sites",
+             subtitle = "Text mining twitter data ",
+             x = "", y = "")
+```
+
+
+### Network map - Articles
+
+#### The network map took Ngram token approach to look for words that are frequently used together in articles. It then plots them on a network map to show how they are clustered together or related.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE, fig.height=10}
+# data_filtered <- readRDS("data_out/text_data_filtered_by_key_words.rds")
+# 
+# 
+# article_paired_words <- data_filtered %>%
+#   select(article_text) %>%
+#   unnest_tokens(paired_words, article_text, token = "ngrams", n = 2)
+# 
+# article_paired_words %>%
+#   count(paired_words, sort = TRUE)
+# 
+# article_separated_words <- article_paired_words %>%
+#   separate(paired_words, c("word1", "word2"), sep = " ")
+# 
+# article_filtered <- article_separated_words %>%
+#   filter(!word1 %in% stop_words$word) %>%
+#   filter(!word2 %in% stop_words$word)
+# 
+# article_words_counts <- article_filtered %>%
+#   count(word1, word2, sort = TRUE)
+# 
+# saveRDS(article_words_counts, file = "data_out/article_words_counts.rds")
+
+article_words_counts <- readRDS("data_out/article_words_counts.rds")
+network_plot_article <- article_words_counts %>%
+        filter(n >= 2500) %>%
+        graph_from_data_frame() %>%
+        ggraph(layout = "fr") +
+        geom_node_point(color = "darkslategray4", size = 3) +
+        geom_node_text(aes(label = name), vjust = 1.8, size = 3) +
+        labs(title = "Word Network: Articles from different Media Sites",
+             subtitle = "Text mining of news articles ",
+             x = "", y = "")
+```
+Column {}
+-----------------------------------------------------------------------
+
+
+### Network map - Articles
+
+
+
+```{r message=FALSE, warning=FALSE}
+network_plot_article
+
+```
+
+### Network map - Tweets
+
+
+
+```{r message=FALSE, warning=FALSE}
+network_plot
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Paragraph sentiment
+
+#### With the code, we assumed that each paragraph consisted of about 50 words. There was no way of using our data to precisely know where apragraph breaks are, however it was a good analysis to gain a better context of sentiment, rather than just analysing word for word. It took 50 words and gathered the sentiment accross the words to give a more accurate representation, of positivity and negativity. We then created a sentiment graph for each newssites to see their sentiment seperately, and maybe see if specific news sites are overly negative or positive with the news they report. News24, Daily Maverick and Groundup was mainly negative. Groundup specifically states "We report news that is in the public interest, with an emphasis on the human rights of vulnerable communities." They particularly had a lot of articles about vulnerable communities and the hardships they are facing over the recent times.
+```{r echo=TRUE, message=FALSE, warning=FALSE, fig.height=8}
+covid2 <- readRDS("data_out/text_data_filtered_by_key_words.rds")
+word_tb <-covid2 %>%
+  unnest_tokens(word, article_text) 
+
+# Approximate look at paragraphs(Paragraphs defined as being 50 words in general)
+word_tb <- word_tb %>%
+  group_by(site) %>%
+  mutate(word_count = 1:n(),
+         index = word_count %/% 50 + 1) %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(site, index = index , sentiment) %>%
+  ungroup() %>%
+  spread(sentiment, n, fill = 0) %>%
+  mutate(sentiment = positive - negative)
+
+# saveRDS(word_tb, file = "data_out/paragraph_sentiment")
+
+facet_paragraph <- ggplot(word_tb,aes(x=index, y=sentiment, fill = sentiment > 0)) +
+    geom_bar(alpha = 0.5, stat = "identity", show.legend = FALSE) +
+    facet_wrap(~ site, ncol = 3, scales = "free_x")
+
+
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Paragraph sentiment
+
+
+```{r echo=FALSE, fig.height=12}
+facet_paragraph
+```
+
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Article text - tokenising words and cleaning
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+topic_data <- readRDS("data_out/text_data_filtered_by_key_words.rds")
+topic_selected <- topic_data %>% select(screen_name, article_text, created_at)
+topic_selected <- rowid_to_column(topic_selected, "ID")
+
+data("stop_words")
+
+topic_tokenised <- topic_selected %>% select(screen_name, created_at, ID,article_text) %>%  
+  unnest_tokens(output = word, input = article_text) %>% 
+  anti_join(stop_words) %>% 
+  filter(nchar(word) > 2)
+
+saveRDS(topic_tokenised, file = "data_out/topic_tokenised.RDS") 
+tokenised_news <- topic_tokenised
+
+tokenised_news$created_at <- as.Date(tokenised_news$created_at)
+
+```
+
+
+
+
+### Twitter text - reading in cleaned data
+
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+tweets_data <- readRDS("data_out/cleaned_tweets_text.rds")
+tweets_selected <- tweets_data %>% select(screen_name, word, created_at)
+tweets_selected <- rowid_to_column(tweets_selected, "ID")
+
+tokenised_tweets <- tweets_selected
+tokenised_tweets$created_at <- as.Date(tokenised_tweets$created_at)
+tokenised_tweets1 <- tokenised_tweets
+
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Article text - Top 5 words for each day
+
+#### This displays the 5 top words accross all news site articles for every day
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+tokenised_news %>% 
+  group_by(created_at, word) %>% 
+  tally() %>% 
+  arrange(created_at, desc(n)) %>% 
+  group_by(created_at) %>% 
+  top_n(5) %>% tail(100)
+```
+
+
+
+
+### Twitter text - Top 5 words for each day
+
+#### This displays the 5 top words accross all news site tweets for every day
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+tokenised_tweets %>% 
+  group_by(created_at, word) %>% 
+  tally() %>% 
+  arrange(created_at, desc(n)) %>% 
+  group_by(created_at) %>% 
+  top_n(5) %>% tail(100)
+```
+
+Column {}
+-----------------------------------------------------------------------
+
+### Article text - Top 5 words per site
+
+#### This displays the Top 5 Words used per news site in the articles
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+tokenised_news %>% 
+  group_by(screen_name, word) %>% 
+  tally() %>% 
+  arrange(desc(n)) %>% 
+  group_by(screen_name) %>% 
+  arrange(desc(screen_name)) %>% 
+  top_n(5)
+```
+
+
+
+### Tweets text - Top 5 words per site
+
+#### This displays the Top 5 Words used per news site in the tweets
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+tokenised_tweets %>% 
+  group_by(screen_name, word) %>% 
+  tally() %>% 
+  arrange(desc(n)) %>% 
+  group_by(screen_name) %>% 
+  arrange(desc(screen_name)) %>% 
+  top_n(5)
+```
+
+Column {}
+-----------------------------------------------------------------------
+
+### Article text - Top 5 words per month
+
+#### This shows the top 5 words used every month in the articles per news site
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+tokenised_news %>% 
+  mutate(month = cut(created_at, 'month')) %>% 
+  group_by(month, word) %>% 
+  tally() %>% 
+  arrange(month, desc(n)) %>% 
+  group_by(month) %>% 
+  top_n(10)
+```
+
+
+
+### Tweets text - Top 5 words per month
+
+#### This shows the top 5 words used every month in the tweets per news site
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+tokenised_tweets %>% 
+  mutate(month = cut(created_at, 'month')) %>% 
+  group_by(month, word) %>% 
+  tally() %>% 
+  arrange(month, desc(n)) %>% 
+  group_by(month) %>% 
+  top_n(10)
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Article text - Plot the occurence of Lockdown vs Coronavirus
+
+#### This shows how many times the word lockdown occurs vs coronavirus over time in all articles
+```{r echo=TRUE}
+
+#2words
+tokenised_news <- tokenised_news %>%
+  filter(word %in% c('lockdown', 'coronavirus')) %>%
+  group_by(created_at, word) %>%
+  tally()
+article_words_plot <- ggplot(tokenised_news) +
+  geom_col(aes(x = created_at, y = n, fill = word))+
+  labs(x="Date Posted", y="Number of Occurences")+
+  theme(legend.position = "top")
+```
+
+
+
+### Tweets text - Plot the occurence of Lockdown vs Coronavirus
+
+#### This shows how many times the word lockdown occurs vs coronavirus over time in all tweets
+```{r echo=TRUE}
+
+#2words
+tokenised_tweets1 <- tokenised_tweets1 %>%
+  filter(word %in% c('lockdown', 'coronavirus')) %>%
+  group_by(created_at, word) %>%
+  tally()
+tweets_words_plot <- ggplot(tokenised_tweets1) +
+  geom_col(aes(x = created_at, y = n, fill = word))+
+  labs(x="Date Posted", y="Number of Occurences")+
+  theme(legend.position = "top")
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Article text - Plot the occurence of Lockdown vs Coronavirus
+
+
+```{r echo=FALSE}
+article_words_plot
+```
+
+
+
+### Twitter text - Plot the occurence of Lockdown vs Coronavirus
+
+
+```{r echo=FALSE}
+tweets_words_plot
+```
+
+Column {}
+-----------------------------------------------------------------------
+
+### Article text - tf, idf, tf_idf
+
+
+```{r echo=TRUE}
+
+# 
+# article_words <- tokenised_news %>% 
+#   mutate(article_code = paste0(screen_name, created_at)) %>%
+#   group_by(article_code, word) %>%
+#   tally() %>% 
+#   arrange(desc(n)) %>% 
+#   bind_tf_idf(word, article_code, n)
+# saveRDS(article_words,"data_out/tokenised_words_tfidf.rds")
+
+article_words <- readRDS(file = "data_out/tokenised_words_tfidf.rds")
+
+
+```
+
+### tweets text - tf, idf, tf_idf
+
+
+```{r echo=TRUE}
+
+# tweets_data1 <- readRDS("data_out/cleaned_tweets_text.rds")
+# tweets_selected1 <- tweets_data %>% select(screen_name, word, created_at)
+# tweets_selected1 <- rowid_to_column(tweets_selected1, "ID")
+# 
+# tokenised_tweets1 <- tweets_selected1
+# tokenised_tweets1$created_at <- as.Date(tokenised_tweets1$created_at)
+# tokenised_tweets2 <- tokenised_tweets1
+
+# tweets_words <- tokenised_tweets2 %>%
+#   mutate(tweets_code = paste0(screen_name, created_at)) %>%
+#   group_by(tweets_code, word) %>%
+#   tally() %>%
+#   arrange(desc(n)) %>%
+#   bind_tf_idf(word, tweets_code, n)
+# saveRDS(tweets_words,"data_out/tokenised_tweets_tfidf.rds")
+
+
+tweets_words <- readRDS(file = "data_out/tokenised_tweets_tfidf.rds")
+
+```
+
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Tweets text - most unusual words (tf_idf)
+
+#### This shows the most unusual words that came across the tweets. It is words that occur a lot in one tweet but not in different tweets. 
+```{r echo=TRUE}
+
+unusual_words <- tweets_words %>% 
+  bind_tf_idf(word, tweets_code, n) %>% 
+  arrange(desc(tf_idf))
+
+head(unusual_words)
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Article text - Topic Modeling
+
+```{r echo=TRUE, fig.height=10, fig.width=10}
+
+# dtm_long <- article_words %>% 
+#     filter(tf_idf > 0.00006) %>% 
+#   filter(n>5) %>%
+#     cast_dtm(article_code, word, n)
+# 
+# lda_model_long_1 <- LDA(dtm_long,k = 10, control = list(seed = 1234))
+# 
+# result <- tidytext::tidy(lda_model_long_1, 'beta')
+# 
+# saveRDS(result, "data/topic_model_k10.rds")
+result <- readRDS("data_out/topic_model_k10.rds")
+
+resultplot <- result %>%
+    group_by(topic) %>%
+    top_n(10, beta) %>%
+    ungroup() %>%
+    arrange(topic, -beta) %>% 
+    mutate(term = reorder(term, beta))
+resultplotfinal <- resultplot %>% 
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free", ncol = 3) +
+  coord_flip()
+
+saveRDS(resultplot, "tomas/resultplot.rds")
+
+
+```
+
+
+Column {}
+-----------------------------------------------------------------------
+
+### Article text - Topic Modeling
+
+```{r echo=FALSE, fig.height=12}
+resultplotfinal
+```
+
